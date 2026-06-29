@@ -72,6 +72,7 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --ring: #0d9488;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -117,14 +118,231 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ============================================================================
+   Codflow — Design system foundation (Emil Kowalski craft bar)
+   Paleta: "flow" teal + grafito cálido · springs reales + curvas fuertes
+   ========================================================================== */
+:root {
+  /* — Marca / lienzo (color con intención, no gris de framework) — */
+  --canvas: #f6f7f7;          /* grafito muy claro, levemente cálido */
+  --surface: #ffffff;
+  --ink: #18211f;             /* texto principal grafito-verdoso */
+  --ink-soft: #5b6663;        /* texto secundario */
+  --brand: #0d9488;           /* teal 600 — acciones primarias */
+  --brand-strong: #0f766e;    /* teal 700 — hover */
+  --hairline: #e7eae9;        /* bordes finos cálidos */
+
+  /* — Curvas de easing fuertes (built-ins de CSS son demasiado débiles) — */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Spring CSS (overshoot sutil) para entradas predeterminadas off-main-thread */
+  --spring: linear(
+    0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%,
+    0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001
+  );
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    background: var(--canvas);
+    @apply text-foreground;
   }
   html {
     @apply font-sans;
+  }
+
+  /* — Foco visible y consistente para accesibilidad (anillo teal) — */
+  :where(a, button, [role="button"], input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* — Scrollbar personalizado sutil — */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(24, 33, 31, 0.18) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(24, 33, 31, 0.16);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 200ms var(--ease-out);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(24, 33, 31, 0.3);
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* — Press feedback: todo pulsable se hunde un punto (Emil: scale 0.97) — */
+  .press {
+    transition: transform 160ms var(--ease-out), background-color 200ms ease,
+      border-color 200ms ease, color 200ms ease, box-shadow 200ms var(--ease-out);
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* — Ancho de medida cómodo: máx 65ch por línea de texto — */
+  .measure {
+    max-width: 65ch;
+  }
+
+  /* — Elevación suave en hover (gated: el táctil dispara hover falso al tocar) — */
+  .card-lift {
+    transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out),
+      border-color 200ms var(--ease-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .card-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 30px -14px rgba(13, 79, 71, 0.22),
+        0 4px 10px -6px rgba(13, 79, 71, 0.12);
+      border-color: #cfe0dd;
+    }
+  }
+
+  /* — Entrada con spring CSS (predeterminada, off-main-thread) — */
+  .rise-in {
+    animation: rise-in 460ms var(--spring) both;
+  }
+
+  /* — Skeleton con barrido suave (no spinner, no pulse duro) — */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #eceeed;
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.65),
+      transparent
+    );
+    animation: skeleton-sweep 1.6s var(--ease-in-out) infinite;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ============================================================================
+   Mapa (Leaflet) — pines HTML con entrada animada + popup con spring
+   ========================================================================== */
+.map-pin-icon {
+  background: transparent;
+  border: 0;
+}
+.map-pin {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pin);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(16, 24, 22, 0.35);
+  transform-origin: center;
+  cursor: pointer;
+  animation: pin-in 0.5s var(--spring) both;
+  transition: transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .map-pin:hover {
+    transform: scale(1.35);
+    box-shadow: 0 3px 10px rgba(16, 24, 22, 0.4);
+  }
+}
+@keyframes pin-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2) translateY(-6px);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* El bubble se anima (no .leaflet-popup ni el tip: Leaflet usa su transform ahí) */
+.leaflet-popup-content-wrapper {
+  transform-origin: bottom center;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 10px 28px -10px rgba(16, 24, 22, 0.3);
+  animation: popup-in 0.26s var(--spring) both;
+}
+.leaflet-popup-tip {
+  animation: tip-in 0.26s ease both;
+}
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* — Accesibilidad: movimiento reducido = animaciones más suaves, no cero — */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton::after {
+    animation: none;
   }
 }

@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import type { LeadFilters } from "@/lib/leads-utils";
 import { TIER_ORDER, getTierStyle } from "@/lib/tier-colors";
+import { ESTADO_OPTIONS } from "@/lib/estado-config";
 import {
   Select,
   SelectContent,
@@ -73,6 +74,25 @@ export function FiltersBar({
             {TIER_ORDER.map((tier) => (
               <SelectItem key={tier} value={tier}>
                 {getTierStyle(tier).label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.estado ?? ALL_VALUE}
+          onValueChange={(value) =>
+            onFiltersChange({ ...filters, estado: value === ALL_VALUE ? null : value })
+          }
+        >
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_VALUE}>Todos los estados</SelectItem>
+            {ESTADO_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.icon} {opt.label}
               </SelectItem>
             ))}
           </SelectContent>

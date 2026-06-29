@@ -15,7 +15,9 @@ interface LeadsMapProps {
 
 export function LeadsMap({ leads }: LeadsMapProps) {
   return (
-    <div className="h-[600px] overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+    // isolation: isolate crea un nuevo stacking context que contiene
+    // los z-index internos de Leaflet (~400) sin que escalen al documento
+    <div className="h-[600px] overflow-hidden rounded-xl border border-[#e7eae9] shadow-[0_1px_2px_rgba(24,33,31,0.05)] isolate">
       <LeadsMapInner leads={leads} />
     </div>
   );

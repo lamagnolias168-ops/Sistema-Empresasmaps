@@ -1,5 +1,11 @@
 export type Tier = "alto" | "medio" | "bajo";
 
+export interface Interaccion {
+  fecha: string;   // ISO string
+  texto: string;
+  tipo?: string;
+}
+
 export interface Lead {
   id: string;
   nombre: string;
@@ -22,5 +28,8 @@ export interface Lead {
   razon: string | null;
   angulo_contacto: string | null;
   estado: string | null;
+  contexto_completo: unknown;
+  notas_interacciones: Interaccion[] | null;
+  fecha_proximo_seguimiento: string | null;
   created_at: string;
 }

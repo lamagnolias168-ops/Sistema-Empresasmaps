@@ -5,12 +5,14 @@ export interface LeadFilters {
   rubro: string | null;
   tier: string | null;
   search: string;
+  estado: string | null;
 }
 
 export const EMPTY_FILTERS: LeadFilters = {
   rubro: null,
   tier: null,
   search: "",
+  estado: null,
 };
 
 export function getUniqueRubros(leads: Lead[]): string[] {
@@ -27,6 +29,7 @@ export function filterLeads(leads: Lead[], filters: LeadFilters): Lead[] {
   return leads.filter((lead) => {
     if (filters.rubro && lead.rubro !== filters.rubro) return false;
     if (filters.tier && normalizeTier(lead.tier) !== filters.tier) return false;
+    if (filters.estado && lead.estado !== filters.estado) return false;
     if (search && !lead.nombre.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -38,6 +41,7 @@ export interface LeadKpis {
   medio: number;
   bajo: number;
   promedio: number | null;
+  porContactar: number;
 }
 
 export function computeKpis(leads: Lead[]): LeadKpis {
@@ -46,12 +50,15 @@ export function computeKpis(leads: Lead[]): LeadKpis {
   let bajo = 0;
   let sum = 0;
   let scored = 0;
+  let porContactar = 0;
 
   for (const lead of leads) {
     const tier = normalizeTier(lead.tier);
     if (tier === "alto") alto += 1;
     else if (tier === "medio") medio += 1;
     else if (tier === "bajo") bajo += 1;
+
+    if (lead.estado === "por_contactar" || lead.estado == null) porContactar += 1;
 
     if (typeof lead.puntaje_total === "number") {
       sum += lead.puntaje_total;
@@ -65,6 +72,7 @@ export function computeKpis(leads: Lead[]): LeadKpis {
     medio,
     bajo,
     promedio: scored > 0 ? sum / scored : null,
+    porContactar,
   };
 }
 

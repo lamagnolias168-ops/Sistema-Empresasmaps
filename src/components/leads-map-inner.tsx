@@ -1,6 +1,8 @@
 "use client";
 
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { useMemo } from "react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Lead } from "@/types/lead";
 import { getTierStyle } from "@/lib/tier-colors";
@@ -11,7 +13,26 @@ interface LeadsMapInnerProps {
   leads: Lead[];
 }
 
+// Pin HTML (divIcon) — permite entrada animada por CSS con stagger, imposible en SVG CircleMarker.
+function makePin(color: string, delayMs: number) {
+  return L.divIcon({
+    className: "map-pin-icon",
+    html: `<span class="map-pin" style="--pin:${color};animation-delay:${delayMs}ms"></span>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    popupAnchor: [0, -10],
+  });
+}
+
 export default function LeadsMapInner({ leads }: LeadsMapInnerProps) {
+  const points = useMemo(
+    () =>
+      leads.filter(
+        (l) => typeof l.latitud === "number" && typeof l.longitud === "number"
+      ),
+    [leads]
+  );
+
   return (
     <MapContainer
       center={PANAMA_CITY_CENTER}
@@ -23,34 +44,31 @@ export default function LeadsMapInner({ leads }: LeadsMapInnerProps) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {leads.map((lead) => {
-        if (typeof lead.latitud !== "number" || typeof lead.longitud !== "number") {
-          return null;
-        }
+      {points.map((lead, i) => {
         const style = getTierStyle(lead.tier);
+        // Stagger de entrada (acotado para que el último pin no espere de más)
+        const delay = 80 + Math.min(i, 24) * 35;
         return (
-          <CircleMarker
+          <Marker
             key={lead.id}
-            center={[lead.latitud, lead.longitud]}
-            radius={7}
-            pathOptions={{
-              color: style.mapColor,
-              fillColor: style.mapColor,
-              fillOpacity: 0.85,
-              weight: 2,
+            position={[lead.latitud as number, lead.longitud as number]}
+            icon={makePin(style.mapColor, delay)}
+            eventHandlers={{
+              mouseover: (e) => e.target.openPopup(),
+              mouseout: (e) => e.target.closePopup(),
             }}
           >
-            <Popup>
+            <Popup autoPan={false} closeButton={false}>
               <div className="text-sm">
                 <p className="font-semibold">{lead.nombre}</p>
                 <p className="text-xs text-gray-500">{lead.rubro}</p>
-                <p className="mt-1 text-xs">
+                <p className="mt-1 text-xs tabular-nums">
                   {style.label}
                   {typeof lead.puntaje_total === "number" && ` · ${Math.round(lead.puntaje_total)} pts`}
                 </p>
               </div>
             </Popup>
-          </CircleMarker>
+          </Marker>
         );
       })}
     </MapContainer>

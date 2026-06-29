@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Lead } from "@/types/lead";
+import type { Interaccion, Lead } from "@/types/lead";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,10 +10,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: "no-store" }) },
+});
 
 export async function fetchLeads(): Promise<Lead[]> {
-  const { data, error } = await supabase
+const { data, error } = await supabase
     .from("leads")
     .select("*")
     .order("puntaje_total", { ascending: false, nullsFirst: false });
@@ -23,4 +25,21 @@ export async function fetchLeads(): Promise<Lead[]> {
   }
 
   return data ?? [];
+}
+
+export async function updateLeadEstado(id: string, estado: string): Promise<void> {
+  const { error } = await supabase.from("leads").update({ estado }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateLeadCrm(
+  id: string,
+  fields: {
+    estado?: string;
+    notas_interacciones?: Interaccion[];
+    fecha_proximo_seguimiento?: string | null;
+  }
+): Promise<void> {
+  const { error } = await supabase.from("leads").update(fields).eq("id", id);
+  if (error) throw new Error(error.message);
 }
