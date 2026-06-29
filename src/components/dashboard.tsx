@@ -23,6 +23,7 @@ import { KanbanView } from "@/components/kanban-view";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { RubroIntelPanel } from "@/components/rubro-intel-panel";
 import { RefreshCw, ShieldAlert, LayoutGrid, Kanban } from "lucide-react";
+import { BrushResultPanel } from "@/components/brush-result-panel";
 
 interface MonitorResult {
   total_revisados: number;
@@ -52,13 +53,23 @@ export function Dashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<MonitorResult | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("tarjetas");
+  const [brushSelection, setBrushSelection] = useState<Lead[] | null>(null);
 
   const rubros = useMemo(() => getUniqueRubros(leads), [leads]);
   const filteredLeads = useMemo(() => filterLeads(leads, filters), [leads, filters]);
-  // Sort by urgency score by default
   const sortedLeads = useMemo(() => sortByUrgency(filteredLeads), [filteredLeads]);
   const kpis = useMemo(() => computeKpis(leads), [leads]);
   const mapLeads = useMemo(() => leadsWithCoordinates(sortedLeads), [sortedLeads]);
+
+  // When brush selection is active, restrict grid to only those leads
+  const brushSelectedIds = useMemo(
+    () => new Set(brushSelection?.map((l) => l.id) ?? []),
+    [brushSelection]
+  );
+  const displayLeads = useMemo(() => {
+    if (!brushSelection || brushSelection.length === 0) return sortedLeads;
+    return sortedLeads.filter((l) => brushSelectedIds.has(l.id));
+  }, [sortedLeads, brushSelection, brushSelectedIds]);
 
   // Leads del rubro seleccionado (todos, sin otros filtros) para el panel de inteligencia
   const rubroLeads = useMemo(() => {
@@ -241,8 +252,26 @@ export function Dashboard() {
               />
             ) : (
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
-                <LeadsGrid leads={sortedLeads} onVerDetalle={setSelectedLead} />
-                <LeadsMap leads={mapLeads} />
+                <LeadsGrid leads={displayLeads} onVerDetalle={setSelectedLead} />
+                <div className="flex gap-4">
+                  <div className="flex-1 min-w-0">
+                    <LeadsMap
+                      leads={mapLeads}
+                      onBrushSelect={(sel) => setBrushSelection(sel.length ? sel : null)}
+                      brushSelectedIds={brushSelectedIds}
+                    />
+                  </div>
+                  <AnimatePresence>
+                    {brushSelection && brushSelection.length > 0 && (
+                      <BrushResultPanel
+                        key="brush-panel"
+                        leads={brushSelection}
+                        onClose={() => setBrushSelection(null)}
+                        onSelectLead={setSelectedLead}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             )}
           </div>

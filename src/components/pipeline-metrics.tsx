@@ -2,11 +2,15 @@
 
 import { useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Calendar, PhoneCall, MessageCircle, Mail, Video, StickyNote, FileText } from "lucide-react";
+import {
+  Calendar, PhoneCall, MessageCircle, Mail, Video, StickyNote, FileText,
+  Activity, CheckCircle2, Clock,
+} from "lucide-react";
 import type { Lead, Interaccion } from "@/types/lead";
 import { ESTADO_OPTIONS, getEstadoConfig } from "@/lib/estado-config";
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
+
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 function pct(num: number, den: number) {
@@ -21,6 +25,7 @@ const TIPO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   reunion:  Video,
   nota:     StickyNote,
 };
+
 function TipoIcon({ tipo }: { tipo: string }) {
   const Icon = TIPO_ICONS[tipo] ?? FileText;
   return <Icon className="h-3.5 w-3.5 shrink-0" />;
@@ -35,17 +40,46 @@ function formatRelative(iso: string): string {
   return `hace ${Math.floor(hrs / 24)}d`;
 }
 
-// ── sub-components ───────────────────────────────────────────────────────────
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+// ── Sección container ─────────────────────────────────────────────────────────
+
+function Section({ title, icon: Icon, children }: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-[#e7eae9] bg-white p-5 shadow-[0_1px_2px_rgba(24,33,31,0.05)]">
-      <h3 className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
+    <div className="rounded-2xl border border-[#e7eae9] bg-white p-5 shadow-[0_1px_3px_rgba(24,33,31,0.07)]">
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50">
+          <Icon className="h-3.5 w-3.5 text-teal-600" />
+        </div>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">{title}</h3>
+      </div>
       {children}
     </div>
   );
 }
 
-// 1. Pipeline bar
+// ── 1. Pipeline bar ───────────────────────────────────────────────────────────
+
+const BAR_COLORS: Record<string, string> = {
+  por_contactar:     "bg-gray-300",
+  contactado:        "bg-teal-500",
+  reunion_agendada:  "bg-orange-500",
+  propuesta_enviada: "bg-purple-500",
+  cerrado_ganado:    "bg-emerald-500",
+  cerrado_perdido:   "bg-red-400",
+};
+
+const BAR_GRADIENTS: Record<string, string> = {
+  por_contactar:     "from-gray-300 to-gray-400",
+  contactado:        "from-teal-400 to-teal-600",
+  reunion_agendada:  "from-orange-400 to-orange-600",
+  propuesta_enviada: "from-purple-400 to-purple-600",
+  cerrado_ganado:    "from-emerald-400 to-emerald-600",
+  cerrado_perdido:   "from-red-300 to-red-500",
+};
+
 function PipelineBar({ leads }: { leads: Lead[] }) {
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -61,70 +95,68 @@ function PipelineBar({ leads }: { leads: Lead[] }) {
   const total = leads.length || 1;
   const reduce = useReducedMotion();
 
-  // Segment colors (solid bg for the bar)
-  const BAR_COLORS: Record<string, string> = {
-    por_contactar:     "bg-gray-400",
-    contactado:        "bg-teal-500",
-    reunion_agendada:  "bg-orange-500",
-    propuesta_enviada: "bg-purple-500",
-    cerrado_ganado:    "bg-green-500",
-    cerrado_perdido:   "bg-red-500",
-  };
-
   const segments = ESTADO_OPTIONS.map((opt) => ({
-    opt,
-    count: counts[opt.value] ?? 0,
+    opt, count: counts[opt.value] ?? 0,
   })).filter((s) => s.count > 0);
 
   return (
-    <Card title="Pipeline de ventas">
-      {/* Barra — cada segmento crece desde 0 al cargar; hover revela el detalle */}
-      <div className="flex h-8 w-full gap-px overflow-hidden rounded-lg bg-gray-100">
+    <Section title="Pipeline de ventas" icon={Activity}>
+      {/* Total pill */}
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-2xl font-bold tabular-nums text-[#1c2b2b]">{leads.length}</span>
+        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
+          leads totales
+        </span>
+      </div>
+
+      {/* Barra segmentada */}
+      <div className="flex h-10 w-full gap-0.5 overflow-hidden rounded-xl bg-gray-100">
         {segments.map(({ opt, count }, i) => {
           const width = (count / total) * 100;
           return (
             <motion.div
               key={opt.value}
+              title={`${opt.label}: ${count}`}
               initial={{ width: 0 }}
               animate={{ width: `${width}%` }}
               transition={{
-                duration: reduce ? 0 : 0.7,
+                duration: reduce ? 0 : 0.8,
                 ease: [0.23, 1, 0.32, 1],
-                delay: reduce ? 0 : 0.1 + i * 0.07,
+                delay: reduce ? 0 : 0.1 + i * 0.08,
               }}
-              style={{ minWidth: "28px" }}
-              className={`group relative flex items-center justify-center text-xs font-bold tabular-nums text-white transition-[filter] duration-200 ease-out hover:brightness-110 ${BAR_COLORS[opt.value]}`}
+              style={{ minWidth: 32 }}
+              className={`group relative flex items-center justify-center bg-linear-to-b ${BAR_GRADIENTS[opt.value]} text-xs font-bold tabular-nums text-white transition-[filter] duration-200 hover:brightness-105`}
             >
               {count}
-              {/* Popover origin-aware que aparece sobre el segmento al hacer hover */}
-              <span
-                className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 origin-bottom scale-90 whitespace-nowrap rounded-md bg-[#18211f] px-2.5 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100"
-              >
-                {opt.label}: <span className="tabular-nums">{count}</span>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#1c2b2b] px-2.5 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                {opt.label}: {count}
               </span>
             </motion.div>
           );
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+      {/* Leyenda */}
+      <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-2">
         {ESTADO_OPTIONS.map((opt) => {
           const count = counts[opt.value] ?? 0;
           return (
             <div key={opt.value} className="flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-full ${BAR_COLORS[opt.value]}`} />
-              <span className="text-xs text-gray-600">{opt.label}</span>
-              <span className="text-xs font-semibold tabular-nums text-gray-800">{count}</span>
+              <span className={`h-2 w-2 rounded-full ${BAR_COLORS[opt.value]}`} />
+              <span className="text-xs text-gray-500">{opt.label}</span>
+              <span className={`text-xs font-bold tabular-nums ${count > 0 ? "text-gray-800" : "text-gray-300"}`}>
+                {count}
+              </span>
             </div>
           );
         })}
       </div>
-    </Card>
+    </Section>
   );
 }
 
-// 2. Tasa de conversión
+// ── 2. Tasa de conversión ─────────────────────────────────────────────────────
+
 function ConversionFunnel({ leads }: { leads: Lead[] }) {
   const stats = useMemo(() => {
     let total = 0, contactados = 0, reuniones = 0, propuestas = 0, cerrados = 0;
@@ -140,56 +172,59 @@ function ConversionFunnel({ leads }: { leads: Lead[] }) {
   }, [leads]);
 
   const steps = [
-    { label: "Contactados / Total",         num: stats.contactados, den: stats.total },
-    { label: "Reuniones / Contactados",      num: stats.reuniones,   den: stats.contactados },
-    { label: "Propuestas / Reuniones",       num: stats.propuestas,  den: stats.reuniones },
-    { label: "Cerrados / Propuestas",        num: stats.cerrados,    den: stats.propuestas },
+    { label: "Contactados",  num: stats.contactados, den: stats.total,       color: "bg-teal-500" },
+    { label: "Reuniones",    num: stats.reuniones,   den: stats.contactados,  color: "bg-orange-500" },
+    { label: "Propuestas",   num: stats.propuestas,  den: stats.reuniones,    color: "bg-purple-500" },
+    { label: "Cerrados",     num: stats.cerrados,    den: stats.propuestas,   color: "bg-emerald-500" },
   ];
 
   const reduce = useReducedMotion();
 
   return (
-    <Card title="Tasa de conversión">
-      <div className="space-y-3">
-        {steps.map(({ label, num, den }, i) => {
+    <Section title="Tasa de conversión" icon={CheckCircle2}>
+      <div className="space-y-4">
+        {steps.map(({ label, num, den, color }, i) => {
           const ratio = den ? num / den : 0;
+          const pctNum = den ? Math.round(ratio * 100) : null;
           return (
             <div key={label}>
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="text-gray-600">{label}</span>
-                <span className="font-semibold tabular-nums text-gray-800">
-                  {num} / {den} &nbsp;
-                  <span className={ratio >= 0.5 ? "text-green-600" : ratio >= 0.25 ? "text-amber-600" : "text-gray-400"}>
-                    ({pct(num, den)})
+              <div className="mb-1.5 flex items-end justify-between">
+                <span className="text-sm font-medium text-gray-700">{label}</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs tabular-nums text-gray-400">{num}/{den}</span>
+                  <span className={`text-sm font-bold tabular-nums ${
+                    pctNum === null ? "text-gray-300"
+                    : pctNum >= 50 ? "text-emerald-600"
+                    : pctNum >= 25 ? "text-amber-600"
+                    : "text-gray-400"
+                  }`}>
+                    {pctNum !== null ? `${pctNum}%` : "—"}
                   </span>
-                </span>
+                </div>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, ratio * 100)}%` }}
                   transition={{
-                    duration: reduce ? 0 : 0.7,
+                    duration: reduce ? 0 : 0.8,
                     ease: [0.23, 1, 0.32, 1],
-                    delay: reduce ? 0 : 0.15 + i * 0.08,
+                    delay: reduce ? 0 : 0.1 + i * 0.1,
                   }}
-                  className={`h-1.5 rounded-full ${
-                    ratio >= 0.5 ? "bg-green-500" : ratio >= 0.25 ? "bg-amber-400" : "bg-gray-300"
-                  }`}
+                  className={`h-2 rounded-full ${color}`}
                 />
               </div>
             </div>
           );
         })}
       </div>
-    </Card>
+    </Section>
   );
 }
 
-// 3. Actividad reciente
-interface FlatInteraccion extends Interaccion {
-  empresa: string;
-}
+// ── 3. Actividad reciente ─────────────────────────────────────────────────────
+
+interface FlatInteraccion extends Interaccion { empresa: string; }
 
 function ActividadReciente({ leads }: { leads: Lead[] }) {
   const actividad = useMemo<FlatInteraccion[]>(() => {
@@ -203,41 +238,62 @@ function ActividadReciente({ leads }: { leads: Lead[] }) {
     return all.slice(0, 5);
   }, [leads]);
 
+  const TIPO_COLORS: Record<string, string> = {
+    llamada: "bg-teal-50 text-teal-600",
+    whatsapp: "bg-green-50 text-green-600",
+    email: "bg-indigo-50 text-indigo-600",
+    reunion: "bg-orange-50 text-orange-600",
+    nota: "bg-gray-50 text-gray-500",
+  };
+
   return (
-    <Card title="Actividad reciente">
+    <Section title="Actividad reciente" icon={Clock}>
       {actividad.length === 0 ? (
-        <p className="text-sm text-gray-400">Aún no hay interacciones registradas.</p>
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-50">
+            <Activity className="h-5 w-5 text-gray-300" />
+          </div>
+          <p className="text-sm font-medium text-gray-400">Sin interacciones aún</p>
+          <p className="mt-0.5 text-xs text-gray-300">Las notas aparecerán aquí</p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {actividad.map((item, i) => {
             const tipo = item.tipo ?? "nota";
-            const tipoLabel = {
-              llamada: "Llamada", whatsapp: "WhatsApp", email: "Email",
-              reunion: "Reunión", nota: "Nota",
-            }[tipo] ?? "Nota";
-            const resumen = item.texto.length > 80 ? item.texto.slice(0, 77) + "…" : item.texto;
+            const tipoLabel = { llamada: "Llamada", whatsapp: "WhatsApp", email: "Email", reunion: "Reunión", nota: "Nota" }[tipo] ?? "Nota";
+            const resumen = item.texto.length > 75 ? item.texto.slice(0, 72) + "…" : item.texto;
             return (
-              <div key={i} className="flex gap-3">
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-600">
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 26, delay: i * 0.06 }}
+                className="flex gap-3"
+              >
+                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${TIPO_COLORS[tipo] ?? "bg-gray-50 text-gray-500"}`}>
                   <TipoIcon tipo={tipo} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs font-semibold text-gray-800 truncate">{item.empresa}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{tipoLabel} · {formatRelative(item.fecha)}</span>
+                    <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                      {tipoLabel}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-gray-400 ml-auto">{formatRelative(item.fecha)}</span>
                   </div>
-                  <p className="text-xs text-gray-600 leading-snug mt-0.5">{resumen}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-gray-500">{resumen}</p>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
       )}
-    </Card>
+    </Section>
   );
 }
 
-// 4. Seguimientos pendientes
+// ── 4. Seguimientos pendientes ────────────────────────────────────────────────
+
 function SeguimientosPendientes({ leads }: { leads: Lead[] }) {
   const hoy = todayStr();
 
@@ -248,40 +304,62 @@ function SeguimientosPendientes({ leads }: { leads: Lead[] }) {
   }, [leads, hoy]);
 
   return (
-    <Card title="Seguimientos pendientes">
+    <Section title="Seguimientos pendientes" icon={Calendar}>
       {pendientes.length === 0 ? (
-        <p className="text-sm text-green-600 font-medium">✓ Sin seguimientos vencidos</p>
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 22 }}
+            className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50"
+          >
+            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+          </motion.div>
+          <p className="text-sm font-semibold text-emerald-600">Todo al día</p>
+          <p className="mt-0.5 text-xs text-gray-400">Sin seguimientos vencidos</p>
+        </div>
       ) : (
         <div className="space-y-2.5">
-          {pendientes.map((lead) => {
+          {pendientes.map((lead, i) => {
             const isHoy = lead.fecha_proximo_seguimiento === hoy;
             const cfg = getEstadoConfig(lead.estado);
             return (
-              <div key={lead.id} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
-                isHoy ? "border-orange-200 bg-orange-50" : "border-red-200 bg-red-50"
-              }`}>
+              <motion.div
+                key={lead.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 26, delay: i * 0.07 }}
+                className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 ${
+                  isHoy
+                    ? "border-orange-200 bg-orange-50"
+                    : "border-red-200 bg-red-50"
+                }`}
+              >
                 <Calendar className={`mt-0.5 h-4 w-4 shrink-0 ${isHoy ? "text-orange-500" : "text-red-500"}`} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-800">{lead.nombre}</span>
-                    <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${cfg.color}`}>
+                    <span className="text-sm font-semibold text-gray-800 truncate">{lead.nombre}</span>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${cfg.color}`}>
                       {cfg.label}
                     </span>
                   </div>
-                  <p className={`mt-0.5 text-xs font-semibold ${isHoy ? "text-orange-600" : "text-red-600"}`}>
-                    {isHoy ? "🔔 Hoy" : `⚠️ Vencido — ${new Date(lead.fecha_proximo_seguimiento! + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" })}`}
+                  <p className={`mt-0.5 text-xs font-medium ${isHoy ? "text-orange-600" : "text-red-600"}`}>
+                    {isHoy
+                      ? "🔔 Hoy"
+                      : `⚠️ ${new Date(lead.fecha_proximo_seguimiento! + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" })}`}
                   </p>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
       )}
-    </Card>
+    </Section>
   );
 }
 
-// ── Main export ──────────────────────────────────────────────────────────────
+// ── Export ────────────────────────────────────────────────────────────────────
+
 export function PipelineMetrics({ leads }: { leads: Lead[] }) {
   return (
     <div className="space-y-4">

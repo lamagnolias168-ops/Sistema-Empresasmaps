@@ -288,6 +288,17 @@
     box-shadow: 0 3px 10px rgba(16, 24, 22, 0.4);
   }
 }
+.map-pin--sel {
+  transform: scale(1.5) !important;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--pin), 0 4px 14px rgba(0,0,0,0.3) !important;
+  animation: none !important;
+}
+.map-pin--dim {
+  opacity: 0.18 !important;
+  filter: saturate(0.2) !important;
+  animation: none !important;
+  transition: opacity 200ms ease-out, filter 200ms ease-out !important;
+}
 @keyframes pin-in {
   from {
     opacity: 0;

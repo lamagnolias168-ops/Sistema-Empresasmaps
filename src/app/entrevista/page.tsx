@@ -816,7 +816,13 @@ function Screen1Plan({
 
 // ── Pantalla 2: Próximos pasos ────────────────────────────────────────────────
 
-function Screen2ProximosPasos({ respuestas }: { respuestas: Record<string, string> }) {
+function Screen2ProximosPasos({
+  respuestas,
+  entrevistaId,
+}: {
+  respuestas: Record<string, string>;
+  entrevistaId: string | null;
+}) {
   const reduce = useReducedMotion();
   const canal = respuestas.canal_contacto ?? "WhatsApp";
   const cuando = respuestas.cuando ?? "pronto";
@@ -825,6 +831,7 @@ function Screen2ProximosPasos({ respuestas }: { respuestas: Record<string, strin
     : cuando.toLowerCase().startsWith("la")
     ? cuando.toLowerCase()
     : "pronto";
+  const analisisHref = entrevistaId ? `/cliente/analisis/${entrevistaId}` : "/cliente";
 
   const pasos = [
     {
@@ -832,7 +839,7 @@ function Screen2ProximosPasos({ respuestas }: { respuestas: Record<string, strin
       color: "bg-teal-50 text-teal-700",
       titulo: "Sus agentes ya están trabajando",
       desc: `Nuestros agentes inteligentes investigan ${respuestas.empresa ?? "su empresa"} en este momento.`,
-      cta: { label: "Ver agentes en vivo →", href: "/" },
+      cta: { label: "Ver análisis en tiempo real →", href: analisisHref },
     },
     {
       num: "2",
@@ -844,9 +851,9 @@ function Screen2ProximosPasos({ respuestas }: { respuestas: Record<string, strin
     {
       num: "3",
       color: "bg-indigo-50 text-indigo-700",
-      titulo: "Monitoreo en tiempo real",
-      desc: "Vea cómo los agentes procesan su caso desde el dashboard principal.",
-      cta: { label: "Ir al dashboard →", href: "/" },
+      titulo: "Reporte de inteligencia listo",
+      desc: "Su reporte completo con oportunidades y próximos pasos estará disponible en minutos.",
+      cta: entrevistaId ? { label: "Ver mi reporte →", href: `/cliente/reporte/${entrevistaId}` } : null,
     },
   ];
 
@@ -932,10 +939,10 @@ function Screen2ProximosPasos({ respuestas }: { respuestas: Record<string, strin
         {/* Botones principales */}
         <motion.div variants={item} className="mt-6 space-y-3">
           <a
-            href="/"
+            href={analisisHref}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 py-3.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-teal-700 active:scale-[0.97]"
           >
-            Ver mis agentes trabajando <ArrowRight className="h-4 w-4" />
+            Ver mi análisis en tiempo real <ArrowRight className="h-4 w-4" />
           </a>
           <button
             onClick={() => window.print()}
@@ -961,12 +968,14 @@ function ResumenFinal({
   enviado,
   error,
   onEnviar,
+  entrevistaId,
 }: {
   respuestas: Record<string, string>;
   enviando: boolean;
   enviado: boolean;
   error: string | null;
   onEnviar: () => void;
+  entrevistaId: string | null;
 }) {
   const [screenIdx, setScreenIdx] = useState<0 | 1 | 2>(0);
   const hasFiredRef = useRef(false);
@@ -999,7 +1008,7 @@ function ResumenFinal({
         />
       )}
       {screenIdx === 2 && (
-        <Screen2ProximosPasos key="s2" respuestas={respuestas} />
+        <Screen2ProximosPasos key="s2" respuestas={respuestas} entrevistaId={entrevistaId} />
       )}
     </AnimatePresence>
   );
@@ -1348,6 +1357,7 @@ export default function EntrevistaPage() {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  const [entrevistaId, setEntrevistaId] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
@@ -1487,9 +1497,9 @@ export default function EntrevistaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
+      const data = await res.json() as { ok?: boolean; error?: string; entrevista_id?: string };
       if (!res.ok || !data.ok) setErrorEnvio(data.error ?? "Error desconocido");
-      else setEnviado(true);
+      else { setEnviado(true); setEntrevistaId(data.entrevista_id ?? null); }
     } catch {
       setErrorEnvio("Error de red. Intente de nuevo.");
     } finally {
@@ -1505,6 +1515,7 @@ export default function EntrevistaPage() {
         enviado={enviado}
         error={errorEnvio}
         onEnviar={handleEnviar}
+        entrevistaId={entrevistaId}
       />
     );
   }
