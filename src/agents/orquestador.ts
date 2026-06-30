@@ -97,8 +97,16 @@ async function flujoNuevoLead(
       "id, nombre, rubro, direccion, telefono, web, rating, latitud, longitud, senal_destacada, tier, contexto_completo"
     );
 
-    const resultado = await investigarEmpresa(lead, gmKey, anthropicKey);
-    contextoCompleto = buildContextoCompleto(lead, resultado);
+    // Obtener dolor declarado por el cliente desde la entrevista asociada
+    const { data: entrevistaData } = await supabase
+      .from("entrevistas")
+      .select("dolor_principal")
+      .eq("lead_id", lead_id)
+      .maybeSingle();
+    const dolorDeclarado = entrevistaData?.dolor_principal ?? null;
+
+    const resultado = await investigarEmpresa(lead, gmKey, anthropicKey, dolorDeclarado);
+    contextoCompleto = buildContextoCompleto(lead, resultado, dolorDeclarado);
 
     const updateFields: Record<string, unknown> = { contexto_completo: contextoCompleto };
     if (resultado.info_web) updateFields.info_web = resultado.info_web.slice(0, 4000);

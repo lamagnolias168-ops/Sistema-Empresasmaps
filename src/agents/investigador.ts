@@ -184,14 +184,15 @@ export async function inferirDolor(
   textoWeb: string | null,
   resenas: Resena[],
   perfilZona: "A" | "B" | "desconocido",
-  anthropicKey: string
+  anthropicKey: string,
+  dolorDeclarado?: string | null
 ): Promise<{ dolor: string; angulo: string }> {
   const perfilDesc =
     perfilZona === "A"
-      ? "Perfil A — alta rotación, márgenes ajustados. Dolor típico: mermas, turnos caóticos, ineficiencia en días de quincena, inventario sin datos."
+      ? "Perfil A — alta rotación, márgenes ajustados."
       : perfilZona === "B"
-      ? "Perfil B — ticket alto, volumen controlado. Dolor típico: pérdida de clientes corporativos por fricción en atención, cobros opacos, falta de datos de retención."
-      : "Zona no clasificada — usar contexto de reseñas y rubro para inferir.";
+      ? "Perfil B — ticket alto, volumen controlado."
+      : "Zona no clasificada.";
 
   const resenasNegStr = resenas
     .filter((r) => r.rating <= 3)
@@ -204,9 +205,18 @@ export async function inferirDolor(
     .map((r) => `[${r.rating}★] ${r.autor}: "${r.texto.slice(0, 200)}"`)
     .join("\n");
 
+  const seccionDolorDeclarado = dolorDeclarado
+    ? `⭐ DOLOR DECLARADO POR EL CLIENTE (FUENTE PRIMARIA — esto es lo que el cliente dijo con sus propias palabras):
+"${dolorDeclarado}"
+
+REGLA CRÍTICA: El campo dolor_identificado DEBE construirse SOBRE este dolor específico que el cliente declaró. Ampliarlo con evidencia de reseñas y web si la hay, pero NUNCA inventar un dolor diferente. Si el cliente dijo que quiere hacer scraping propio en vez de pagar por datos, confirma/amplía ESO. Si las reseñas hablan de otro problema, mencionarlo como contexto adicional, no como el dolor principal.`
+    : `(El cliente no declaró un dolor específico — inferir desde reseñas y zona.)`;
+
   const prompt = `Eres el sistema de inteligencia comercial de Codflow, consultora de IA y datos en Panamá.
 
-Tu tarea: analizar una empresa y generar (1) el dolor principal real en términos de dinero/clientes perdidos, y (2) el ángulo de entrada para una llamada comercial.
+Tu tarea: confirmar y ampliar el dolor de esta empresa usando evidencia real, luego generar el ángulo de entrada para una llamada comercial.
+
+${seccionDolorDeclarado}
 
 EMPRESA: ${lead.nombre}
 RUBRO: ${lead.rubro ?? "desconocido"}
@@ -225,8 +235,8 @@ ${resenasPosiStr || "(ninguna)"}
 
 Responde SOLO en JSON válido, sin texto antes ni después:
 {
-  "dolor_identificado": "El dolor principal en 1-2 oraciones concretas — dinero perdido, clientes que se van, operaciones rotas. Con cifras o ejemplos específicos si los hay.",
-  "angulo_contacto": "El pitch de entrada en 1-2 oraciones — debe sonar como alguien que conoce su negocio por dentro. Anticipar su objeción y terminar con una pregunta que los haga reflexionar."
+  "dolor_identificado": "1-2 oraciones que validan/amplían el dolor declarado con evidencia real. Incluir cifras específicas si las hay (rating, años, costos mencionados). NUNCA ignorar lo que el cliente dijo.",
+  "angulo_contacto": "Pitch de entrada de 1-2 oraciones que conecta con el dolor declarado por el cliente. Sonar como alguien que entendió exactamente el problema. Terminar con pregunta reflexiva."
 }`;
 
   try {
@@ -271,7 +281,8 @@ Responde SOLO en JSON válido, sin texto antes ni después:
 export async function investigarEmpresa(
   lead: LeadInput,
   googleMapsKey: string,
-  anthropicKey: string
+  anthropicKey: string,
+  dolorDeclarado?: string | null
 ): Promise<InvestigacionResult> {
   const fuentes: string[] = [];
   const errores: string[] = [];
@@ -314,7 +325,8 @@ export async function investigarEmpresa(
     textoWeb,
     placeData.resenas,
     perfilZona,
-    anthropicKey
+    anthropicKey,
+    dolorDeclarado
   );
 
   return {
@@ -335,7 +347,8 @@ export async function investigarEmpresa(
 // ── 6. Construir contexto_completo en markdown ────────────────────────────────
 export function buildContextoCompleto(
   lead: LeadInput,
-  r: InvestigacionResult
+  r: InvestigacionResult,
+  dolorDeclarado?: string | null
 ): string {
   const zonaLabel =
     r.perfil_zona === "A"
@@ -364,8 +377,13 @@ export function buildContextoCompleto(
 **Dirección:** ${lead.direccion ?? "desconocida"} | **Zona Codflow:** ${zonaLabel}
 
 ---
+${dolorDeclarado ? `
+### ⭐ Dolor declarado por el cliente (fuente primaria)
+"${dolorDeclarado}"
 
-### Dolor identificado
+---
+` : ""}
+### Dolor identificado por investigación
 ${r.dolor_identificado}
 
 ### Ángulo de contacto

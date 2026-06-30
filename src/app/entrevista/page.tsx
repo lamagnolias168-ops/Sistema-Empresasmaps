@@ -27,7 +27,7 @@ interface Step {
   seguimientoSi?: { opcion: string | RegExp; id: string; pregunta: string; tipo: StepType; placeholder?: string };
 }
 
-const ETAPAS = ["La empresa", "Ubicación", "El problema", "Objetivos", "Contacto"];
+const ETAPAS = ["La empresa", "El problema", "Objetivos", "Contacto"];
 
 // ── Zonas para detección ──────────────────────────────────────────────────────
 
@@ -40,16 +40,105 @@ function mencionaZonas(texto: string): boolean {
   return TODAS_ZONAS.some((z) => t.includes(z));
 }
 
+// ── Parser del opener — extrae campos conocidos del texto libre ───────────────
+
+function parseOpener(texto: string): Record<string, string> {
+  const t = texto.toLowerCase();
+  const result: Record<string, string> = {};
+
+  // Detectar rubro
+  const rubros: [string, string][] = [
+    ["banco", "Banca / Servicios financieros"],
+    ["financier", "Banca / Servicios financieros"],
+    ["seguro", "Banca / Servicios financieros"],
+    ["restaurante", "Restaurante / Alimentos"],
+    ["comida", "Restaurante / Alimentos"],
+    ["aliment", "Restaurante / Alimentos"],
+    ["clínica", "Clínica / Salud"],
+    ["clinica", "Clínica / Salud"],
+    ["médico", "Clínica / Salud"],
+    ["hospital", "Clínica / Salud"],
+    ["farmaci", "Clínica / Salud"],
+    ["logística", "Logística / Courier"],
+    ["logistica", "Logística / Courier"],
+    ["courier", "Logística / Courier"],
+    ["transporte", "Logística / Courier"],
+    ["distribui", "Distribuidora"],
+    ["importad", "Importadora"],
+    ["retail", "Retail / Comercio"],
+    ["supermercado", "Retail / Comercio"],
+    ["construcci", "Construcción / Inmobiliaria"],
+    ["tecnolog", "Tecnología / Software"],
+    ["software", "Tecnología / Software"],
+  ];
+  for (const [key, label] of rubros) {
+    if (t.includes(key)) { result._rubro = label; break; }
+  }
+
+  // Detectar conteo de sucursales
+  const sucursalMatch = t.match(/(\d+)\s*(sucursales?|tiendas?|locales?|sedes?|puntos?\s*de\s*venta|oficinas?)/);
+  if (sucursalMatch) {
+    const count = parseInt(sucursalMatch[1]);
+    if (count >= 2) {
+      result._tiene_sucursales = "Sí, tengo varias";
+      result._sucursales_detalle = `${sucursalMatch[1]} ${sucursalMatch[2]}`;
+      if (count >= 10) result._es_empresa_grande = "true";
+    }
+  }
+
+  // Detectar zona
+  const zonasNacionales = ["todo panamá", "todo panama", "todo el país", "todo el pais", "a nivel nacional", "nacional", "todo el territorio"];
+  if (zonasNacionales.some((z) => t.includes(z))) {
+    result._zona = "Todo Panamá";
+  } else {
+    for (const z of TODAS_ZONAS) {
+      if (t.includes(z)) { result._zona = z; break; }
+    }
+  }
+
+  // Detectar empresa grande por indicadores adicionales
+  if (
+    t.includes("internacional") ||
+    t.includes("multinacional") ||
+    (result._rubro === "Banca / Servicios financieros" && !result._es_empresa_grande)
+  ) {
+    result._es_empresa_grande = "true";
+  }
+
+  // Extraer nombre de empresa con patrones comunes
+  const empresaPatterns = [
+    /(?:trabajo en|mi empresa es|somos|llamo|nombre es|empresa:)\s+([A-ZÁÉÍÓÚ][A-Za-záéíóúÁÉÍÓÚñÑ\s&.]+?)(?:\s*[,\-–]|\s+que\b|\s+y\b|$)/,
+  ];
+  for (const pattern of empresaPatterns) {
+    const match = texto.match(pattern);
+    if (match?.[1]) {
+      result._empresa = match[1].trim().replace(/\s+/g, " ");
+      break;
+    }
+  }
+
+  return result;
+}
+
 // ── STEPS ─────────────────────────────────────────────────────────────────────
 
 const STEPS: Step[] = [
+  // ── OPENER (libre) ────────────────────────────────────────────────────────
+  {
+    id: "opener",
+    etapa: 0,
+    pregunta: "¡Bienvenido! Soy el Agente Guía de Codflow.\n\nCuénteme: ¿cómo se llama su empresa, a qué se dedica y qué problema quiere resolver?\n\nEscriba con sus propias palabras. Mientras más detalle, mejor análisis.",
+    tipo: "longtext",
+    placeholder: "Ej: Trabajo en Banco General, somos un banco con 96 sucursales en todo Panamá y queremos dejar de pagar $170K al año a Pandata por datos que podemos obtener nosotros mismos…",
+  },
   // ── ETAPA 1 ───────────────────────────────────────────────────────────────
   {
     id: "empresa",
     etapa: 0,
-    pregunta: "¡Bienvenido! Soy el Agente Guía de Codflow.\n\nVoy a hacerle algunas preguntas para entender su negocio y preparar un análisis personalizado. Son menos de 5 minutos.\n\n¿Cómo se llama su empresa?",
+    pregunta: "¿Cómo se llama exactamente su empresa?",
     tipo: "text",
-    placeholder: "Nombre de su empresa",
+    placeholder: "Nombre de la empresa",
+    skipIf: (r) => Boolean(r.empresa),
   },
   {
     id: "rubro",
@@ -64,23 +153,20 @@ const STEPS: Step[] = [
       "Distribuidora",
       "Importadora",
       "Retail / Comercio",
+      "Banca / Servicios financieros",
+      "Tecnología / Software",
       "Servicios profesionales",
       "Otro",
     ],
-  },
-  {
-    id: "anios",
-    etapa: 0,
-    pregunta: "¿Cuántos años lleva operando {empresa}?",
-    tipo: "options",
-    opciones: ["Menos de 1 año", "1–3 años", "3–10 años", "Más de 10 años"],
+    skipIf: (r) => Boolean(r.rubro),
   },
   {
     id: "empleados",
     etapa: 0,
-    pregunta: "¿Cuántos empleados tiene aproximadamente?",
+    pregunta: "¿Cuántos empleados tiene aproximadamente {empresa}?",
     tipo: "options",
     opciones: ["1–5", "6–15", "16–50", "51–200", "Más de 200"],
+    skipIf: (r) => r._es_empresa_grande === "true",
   },
   {
     id: "web",
@@ -88,6 +174,11 @@ const STEPS: Step[] = [
     pregunta: "¿Tiene sitio web?",
     tipo: "options",
     opciones: ["Sí", "No, todavía no"],
+    // Saltar para empresas grandes — el agente lo busca
+    skipIf: (r) =>
+      r._es_empresa_grande === "true" ||
+      r.empleados === "Más de 200" ||
+      r.empleados === "51–200",
     seguimientoSi: {
       opcion: "Sí",
       id: "web_url",
@@ -96,59 +187,53 @@ const STEPS: Step[] = [
       placeholder: "https://miempresa.com",
     },
   },
-  // ── ETAPA 2 ───────────────────────────────────────────────────────────────
+  // ── ETAPA 2 (Ubicación — solo lo que el agente no puede descubrir) ────────
   {
     id: "zona",
     etapa: 1,
-    pregunta: "¿Dónde está ubicada {empresa} en Panamá?",
+    pregunta: "¿Dónde está ubicada la sede principal de {empresa} en Panamá?",
     tipo: "text",
     placeholder: "Ej: Juan Díaz, Costa del Este, Obarrio…",
+    skipIf: (r) => Boolean(r.zona),
   },
   {
     id: "sucursales",
     etapa: 1,
-    pregunta: "¿Tiene más de una sucursal?",
+    pregunta: "¿Tiene más de una sucursal o punto de venta?",
     tipo: "options",
     opciones: ["Sí, tengo varias", "No, solo una ubicación"],
+    skipIf: (r) => Boolean(r.sucursales),
     seguimientoSi: {
       opcion: /^Sí/,
       id: "sucursales_detalle",
-      pregunta: "¿Cuántas sucursales tiene y en qué zonas están?",
+      // Solo preguntar cuántas — el agente busca en qué zonas
+      pregunta: "¿Cuántas sucursales tiene aproximadamente?",
       tipo: "text",
-      placeholder: "Ej: 3 sucursales — Costa del Este, San Miguelito y Chiriquí",
+      placeholder: "Ej: 3, o unas 10, o más de 50…",
     },
   },
-  {
-    id: "zonas_clientes",
-    etapa: 1,
-    pregunta: "¿En qué zonas de Panamá están sus clientes principales?",
-    tipo: "multiselect",
-    // Saltar si las sucursales ya mencionaron zonas con suficiente detalle
-    skipIf: (r) => Boolean(r.sucursales_detalle && mencionaZonas(r.sucursales_detalle) && r.sucursales_detalle.length > 20),
-    opciones: [
-      "Juan Díaz / Tocumen",
-      "Transístmica / Villa Zaita",
-      "Calidonia / Santa Ana",
-      "San Francisco / Marbella",
-      "Obarrio / Bella Vista",
-      "Costa del Este / Paitilla",
-      "Calle 50 / Punta Pacífica",
-      "Interior del país",
-      "Zona Libre de Colón",
-      "Todo Panamá",
-    ],
-  },
-  // ── ETAPA 3 ───────────────────────────────────────────────────────────────
+  // ── ETAPA 3 (El problema) ─────────────────────────────────────────────────
   {
     id: "problema",
-    etapa: 2,
-    pregunta: "¿Qué problemas le quitan más tiempo o dinero en su operación diaria?\n\nPuede seleccionar varios.",
+    etapa: 1,
+    pregunta: "¿Qué problema específico quiere resolver con datos o automatización?\n\nEscriba con sus propias palabras o elija la opción que más se acerque.",
     tipo: "multiselect",
     allowFreeText: true,
+    // Si el opener ya mencionó un problema concreto (más de 40 chars), saltar
+    skipIf: (r) => Boolean(r.opener && r.opener.length > 40 && (
+      r.opener.toLowerCase().includes("pagar") ||
+      r.opener.toLowerCase().includes("problem") ||
+      r.opener.toLowerCase().includes("queremos") ||
+      r.opener.toLowerCase().includes("necesit") ||
+      r.opener.toLowerCase().includes("quiero") ||
+      r.opener.toLowerCase().includes("dolor") ||
+      r.opener.toLowerCase().includes("perdiendo")
+    )),
     opciones: [
       "No sé dónde estoy perdiendo dinero",
       "Mis clientes se van sin saber por qué",
       "Mi equipo hace todo de forma manual",
+      "Pago demasiado por datos que podría obtener yo mismo",
       "No sé en qué zona expandirme",
       "Mi competencia me está ganando terreno",
       "No tengo datos para tomar decisiones",
@@ -157,89 +242,67 @@ const STEPS: Step[] = [
   },
   {
     id: "herramientas",
-    etapa: 2,
-    pregunta: "¿Qué herramientas o sistemas usa actualmente para gestionar su negocio?",
+    etapa: 1,
+    pregunta: "¿Qué sistemas o herramientas usa actualmente?",
     tipo: "multiselect",
     opciones: [
       "Excel / Google Sheets",
       "Software contable (QuickBooks, SAP, etc.)",
-      "WhatsApp para todo",
       "Sistema propio o ERP",
+      "Herramienta de datos externa (costosa)",
+      "WhatsApp para todo",
       "No uso nada digital",
       "Otro",
     ],
   },
-  {
-    id: "competidores",
-    etapa: 2,
-    pregunta: "¿Conoce a su competencia directa? ¿Quiénes son sus principales competidores?",
-    tipo: "text",
-    allowFreeText: true,
-    placeholder: "Nombres de sus competidores principales (si no los conoce, escríba 'No los conozco')",
-  },
-  // ── ETAPA 4 ───────────────────────────────────────────────────────────────
+  // ── ETAPA 4 (Objetivos) ───────────────────────────────────────────────────
   {
     id: "objetivo",
-    etapa: 3,
-    pregunta: "¿Qué necesita lograr en los próximos 3 meses?\n\nPuede elegir varios.",
+    etapa: 2,
+    pregunta: "¿Qué necesita lograr en los próximos 3 meses?",
     tipo: "multiselect",
     allowFreeText: true,
     opciones: [
+      "Reducir costos de datos o herramientas",
       "Conseguir más clientes",
-      "Reducir costos operativos",
-      "Entender mi mercado y competencia",
+      "Hacer scraping o recolección de datos propia",
       "Automatizar procesos manuales",
+      "Entender mi mercado y competencia",
       "Expandirme a una nueva zona",
-      "Mejorar mi presencia digital",
       "Otro",
     ],
   },
   {
-    id: "decision",
-    etapa: 3,
-    pregunta: "¿Qué decisión necesita tomar pronto y no tiene datos suficientes para tomarla?",
-    tipo: "options",
-    allowFreeText: true,
-    opciones: [
-      "Abrir nueva sucursal — ¿dónde?",
-      "Lanzar producto nuevo — ¿en qué zona?",
-      "Entrar a un nuevo canal de venta",
-      "Mejorar mi servicio al cliente",
-      "Contratar más personal",
-      "Otra decisión",
-    ],
-  },
-  {
     id: "presupuesto",
-    etapa: 3,
-    pregunta: "¿Tiene presupuesto definido para un proyecto de datos?",
+    etapa: 2,
+    pregunta: "¿Tiene presupuesto definido para este proyecto?",
     tipo: "options",
     opciones: [
       "Menos de $500",
       "$500 – $2,000",
-      "$2,000 – $5,000",
-      "Más de $5,000",
+      "$2,000 – $10,000",
+      "Más de $10,000",
       "Prefiero ver la propuesta primero",
     ],
   },
-  // ── ETAPA 5 ───────────────────────────────────────────────────────────────
+  // ── ETAPA 5 (Contacto) ────────────────────────────────────────────────────
   {
     id: "nombre_contacto",
-    etapa: 4,
+    etapa: 3,
     pregunta: "Casi terminamos. ¿Cuál es su nombre completo?",
     tipo: "text",
     placeholder: "Su nombre y apellido",
   },
   {
     id: "cargo",
-    etapa: 4,
+    etapa: 3,
     pregunta: "¿Cuál es su cargo en {empresa}?",
     tipo: "text",
     placeholder: "Ej: Gerente General, Dueño, Director de Operaciones…",
   },
   {
     id: "canal_contacto",
-    etapa: 4,
+    etapa: 3,
     pregunta: "¿Cómo prefiere que lo contactemos?",
     tipo: "options",
     opciones: ["WhatsApp", "Email", "Llamada"],
@@ -253,7 +316,7 @@ const STEPS: Step[] = [
   },
   {
     id: "cuando",
-    etapa: 4,
+    etapa: 3,
     pregunta: "¿Cuándo sería un buen momento para una sesión de 30 minutos con nuestro equipo?",
     tipo: "options",
     opciones: [
@@ -1433,7 +1496,22 @@ export default function EntrevistaPage() {
     if (!currentStep) return;
 
     const id = idOverride ?? (pendingSeguimiento ? pendingSeguimiento.id : currentStep.id);
-    const nuevasResp = { ...respuestas, [id]: val };
+    let nuevasResp = { ...respuestas, [id]: val };
+
+    // Parsear el opener para extraer y pre-rellenar campos
+    if (id === "opener") {
+      const parsed = parseOpener(val);
+      nuevasResp = { ...nuevasResp, ...parsed };
+      // Promover campos parseados a los campos reales para interpolación y skipIf
+      if (parsed._empresa) nuevasResp.empresa = parsed._empresa;
+      if (parsed._rubro) nuevasResp.rubro = parsed._rubro;
+      if (parsed._zona) nuevasResp.zona = parsed._zona;
+      if (parsed._tiene_sucursales) {
+        nuevasResp.sucursales = parsed._tiene_sucursales;
+        if (parsed._sucursales_detalle) nuevasResp.sucursales_detalle = parsed._sucursales_detalle;
+      }
+    }
+
     setRespuestas(nuevasResp);
     setMensajes((prev) => [...prev, { tipo: "cliente", texto: val }]);
     setShowInput(false);
@@ -1469,13 +1547,22 @@ export default function EntrevistaPage() {
     setEnviando(true);
     setErrorEnvio(null);
     try {
+      // El dolor declarado por el cliente: opener (texto libre) + problema si es diferente
+      const dolorPrincipal = respuestas.opener
+        ? respuestas.opener + (
+            respuestas.problema && respuestas.problema !== respuestas.opener
+              ? `\n\nProblema específico: ${respuestas.problema}`
+              : ""
+          )
+        : (respuestas.problema ?? "");
+
       const payload = {
-        empresa: respuestas.empresa,
-        rubro: respuestas.rubro,
-        zona: respuestas.zona,
-        problema: respuestas.problema,
+        empresa: respuestas.empresa ?? respuestas._empresa ?? "",
+        rubro: respuestas.rubro ?? respuestas._rubro ?? "",
+        zona: respuestas.zona ?? respuestas._zona ?? "",
+        problema: dolorPrincipal,
         objetivos: respuestas.objetivo,
-        competidores: respuestas.competidores,
+        competidores: respuestas.competidores ?? "",
         presupuesto: respuestas.presupuesto,
         contacto: {
           nombre: respuestas.nombre_contacto,
@@ -1485,11 +1572,11 @@ export default function EntrevistaPage() {
           cuando: respuestas.cuando,
         },
         respuestas_completas: respuestas,
-        anios_operando: respuestas.anios,
-        empleados: respuestas.empleados,
+        anios_operando: respuestas.anios ?? "",
+        empleados: respuestas.empleados ?? (respuestas._es_empresa_grande === "true" ? "Más de 200" : ""),
         web: respuestas.web_url ?? null,
-        sucursales: respuestas.sucursales_detalle ?? "",
-        zonas_clientes: (respuestas.zonas_clientes ?? "").split(", ").filter(Boolean),
+        sucursales: respuestas.sucursales_detalle ?? respuestas._sucursales_detalle ?? "",
+        zonas_clientes: [],
         problemas_intentados: respuestas.herramientas ?? "",
       };
       const res = await fetch("/api/entrevista", {

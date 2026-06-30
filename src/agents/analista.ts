@@ -128,10 +128,12 @@ ${contextoTexto.slice(0, 6000) || "(vacío — ejecutar Agente Investigador prim
 
 REGLAS DE CALIDAD (obligatorias):
 
+⭐ REGLA CRÍTICA: Si el contexto incluye una sección "Dolor declarado por el cliente", la senal_destacada DEBE construirse SOBRE ese dolor específico que el cliente declaró con sus propias palabras. Ampliarlo con datos reales, pero NUNCA ignorarlo ni reemplazarlo por otro dolor inventado. Si el cliente dijo que quiere hacer scraping propio en vez de pagar $170K, la señal debe hablar de ESO, no de fragmentación digital ni de churn.
+
 SEÑAL DESTACADA (2-3 oraciones):
-- Debe mencionar al menos UN dato numérico real (rating, años operando, cantidad reseñas, cifra de negocio, cantidad empleados)
-- Debe identificar el DOLOR REAL en términos de dinero perdido o clientes que se van, no solo síntomas superficiales
-- Debe cruzar zona geográfica + comportamiento operativo (no solo listar datos)
+- Si hay dolor declarado: mencionarlo explícitamente y ampliar con evidencia (rating, reseñas, cifras de mercado)
+- Si no hay dolor declarado: identificarlo desde reseñas y zona con al menos UN dato numérico real
+- Debe identificar el DOLOR REAL en términos de dinero perdido o clientes que se van, no síntomas superficiales
 - NO debe ser genérica — "empresa con oportunidad de mejora" NO es aceptable
 
 ÁNGULO DE CONTACTO (4-6 oraciones):

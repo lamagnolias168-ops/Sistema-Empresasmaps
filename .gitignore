@@ -44,3 +44,4 @@ err.log
 out.log
 
 .vercel
+.claude/settings.json
